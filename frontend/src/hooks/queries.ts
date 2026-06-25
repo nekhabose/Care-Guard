@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { api, type OnboardInput } from "../lib/api";
 import type { RiskLevel } from "../lib/types";
 
 export function usePatients(riskLevel?: RiskLevel) {
@@ -50,6 +50,17 @@ export function useCallHighRisk() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
       qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
+export function useOnboardPatient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: OnboardInput) => api.onboardPatient(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["patients"] });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
     },
   });
 }

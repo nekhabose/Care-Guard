@@ -56,10 +56,17 @@ app = FastAPI(
 # Middleware (order matters — outermost runs first)
 app.add_middleware(HIPAAAuditMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+# Explicit CORS_ALLOW_ORIGINS wins (needed when the SPA is on a different host,
+# e.g. Vercel → Railway). Otherwise: "*" in dev, the canonical app domain in prod.
+_cors_origins = settings.cors_origins_list or (
+    ["https://app.careguard.health"] if settings.is_production else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://app.careguard.health"] if settings.is_production else ["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    # Auth is a Bearer header, not cookies; credentials must be off when the
+    # origin list is "*" (browsers reject "*" + credentials).
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

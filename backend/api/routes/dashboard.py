@@ -10,6 +10,7 @@ from api.deps import (
     get_call_trigger_service,
     get_discharge_repo,
     get_escalation_repo,
+    get_onboarding_service,
     get_patient_repo,
     get_patient_rights_service,
     get_session_repo,
@@ -21,6 +22,7 @@ from models.schemas import (
     EscalationRead,
     EscalationResolve,
     OutreachSessionRead,
+    PatientOnboard,
     PatientRead,
 )
 from repositories.discharge import DischargeRepository
@@ -30,6 +32,7 @@ from repositories.session import SessionRepository
 from security.auth import Role
 from services.call_trigger import CallTriggerService
 from services.deidentify import deidentify_patient
+from services.onboarding import PatientOnboardingService
 from services.patient_rights import PatientRightsService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -99,6 +102,20 @@ async def seed_mock_patients(
     Idempotent — safe to call repeatedly.
     """
     return await call_service.seed_from_mock()
+
+
+@router.post("/patients/onboard", response_model=PatientRead, status_code=201)
+async def onboard_patient(
+    body: PatientOnboard,
+    onboarding: PatientOnboardingService = Depends(get_onboarding_service),
+    _user: dict = Depends(require_caller),
+):
+    """Manually enrol a patient (name + mobile + condition) so they're callable.
+
+    Restricted to leads/admins (same as placing a call) — the record it creates
+    can be dialled. Use your own number to test outreach end to end.
+    """
+    return await onboarding.onboard(body)
 
 
 @router.post("/patients/{patient_id}/call", response_model=OutreachSessionRead)

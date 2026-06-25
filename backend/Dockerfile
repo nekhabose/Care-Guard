@@ -21,7 +21,8 @@ USER appuser
 EXPOSE 8000
 
 # Entrypoint runs `alembic upgrade head` then starts the server. The worker
-# overrides the command in docker-compose.
+# overrides the command in docker-compose. Shell form so ${PORT} (set by Railway
+# and other PaaS) expands; falls back to 8000 locally / in docker-compose.
 COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

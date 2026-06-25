@@ -132,7 +132,7 @@ MOCK_DISCHARGES: dict[str, dict[str, Any]] = {
     # Heart failure — high risk (matches the dashboard's Eleanor Whitfield)
     "EPIC-88213": _discharge(
         patient=_patient("EPIC-88213", "MRN-44021", ["Eleanor"], "Whitfield",
-                         "+13128749702", "1948-03-14", "female"),
+                         "+13125550101", "1948-03-14", "female"),
         medications=[
             _med("Furosemide", 40, "mg", "Twice daily", "Take 40 mg by mouth twice daily for fluid"),
             _med("Lisinopril", 10, "mg", "Once daily", "Take 10 mg by mouth every morning"),
@@ -160,7 +160,7 @@ MOCK_DISCHARGES: dict[str, dict[str, Any]] = {
     # COPD — high risk, no follow-up booked (drives risk up)
     "EPIC-77104": _discharge(
         patient=_patient("EPIC-77104", "MRN-51890", ["Marcus"], "Delgado",
-                         "+13128749702", "1955-11-02", "male"),
+                         "+13125550102", "1955-11-02", "male"),
         medications=[
             _med("Albuterol", 90, "mcg", "Every 4-6 hours as needed", "2 puffs inhaled every 4-6 hours as needed"),
             _med("Tiotropium", 18, "mcg", "Once daily", "Inhale 1 capsule once daily"),
@@ -182,7 +182,7 @@ MOCK_DISCHARGES: dict[str, dict[str, Any]] = {
     # Pneumonia — medium risk
     "EPIC-66920": _discharge(
         patient=_patient("EPIC-66920", "MRN-33442", ["Priya"], "Nair",
-                         "+13128749702", "1969-07-21", "female"),
+                         "+13125550103", "1969-07-21", "female"),
         medications=[
             _med("Amoxicillin-Clavulanate", 875, "mg", "Twice daily", "Take 875 mg twice daily for 7 days"),
             _med("Guaifenesin", 600, "mg", "Twice daily", "Take 600 mg twice daily as needed for cough"),
@@ -205,7 +205,7 @@ MOCK_DISCHARGES: dict[str, dict[str, Any]] = {
     # Orthopedic (hip/knee replacement) — lower risk
     "EPIC-55831": _discharge(
         patient=_patient("EPIC-55831", "MRN-77215", ["Walter"], "Brennan",
-                         "+13128749702", "1952-01-09", "male"),
+                         "+13125550104", "1952-01-09", "male"),
         medications=[
             _med("Oxycodone", 5, "mg", "Every 6 hours as needed", "Take 5 mg every 6 hours as needed for pain"),
             _med("Enoxaparin", 40, "mg", "Once daily", "Inject 40 mg under the skin once daily for 14 days"),

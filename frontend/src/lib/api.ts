@@ -71,6 +71,17 @@ interface TokenResponse {
   user: SessionUser;
 }
 
+export interface OnboardInput {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  condition: string;
+  age?: number | null;
+  lives_alone?: boolean;
+  prior_readmissions_90d?: number;
+  has_followup_appointment?: boolean;
+}
+
 // Demo Mode short-circuits network calls with sample data. Small latency keeps
 // loading states honest.
 const wait = () => new Promise((r) => setTimeout(r, 220));
@@ -84,6 +95,33 @@ export const api = {
       { method: "POST", body: JSON.stringify({ email, password }) },
       { auth: true },
     );
+  },
+
+  // Manually enrol a patient so they appear in the cohort and can be called.
+  // Use a real mobile number to test an outreach call end to end.
+  async onboardPatient(input: OnboardInput): Promise<Patient> {
+    if (isDemoMode()) {
+      await wait();
+      const hrrp = input.condition !== "general";
+      const p: Patient = {
+        id: `manual-demo-${mockPatients.length + 1}`,
+        epic_patient_id: `manual-${input.phone.replace(/\D/g, "").slice(-8)}`,
+        mrn: null,
+        first_name: input.first_name,
+        last_name: input.last_name,
+        phone: input.phone,
+        date_of_birth: null,
+        risk_score: hrrp ? 45 : 10,
+        risk_level: hrrp ? "medium" : "low",
+        created_at: new Date().toISOString(),
+      };
+      mockPatients.unshift(p);
+      return p;
+    }
+    return request<Patient>(`/dashboard/patients/onboard`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   },
 
   async listPatients(riskLevel?: RiskLevel): Promise<Patient[]> {

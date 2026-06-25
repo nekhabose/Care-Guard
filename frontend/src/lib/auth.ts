@@ -73,7 +73,10 @@ export function setDemoMode(on: boolean): void {
 }
 
 export function isAuthenticated(): boolean {
-  return isDemoMode() || !!getToken();
+  // A real token is required to enter the platform. Demo mode is a synthetic
+  // sandbox toggled *after* login (Settings) — it no longer bypasses auth, so
+  // nobody can reach the dashboard (and the real "Call" actions) without signing in.
+  return !!getToken();
 }
 
 /** Best-effort decode of a JWT payload (no signature check — display only). */

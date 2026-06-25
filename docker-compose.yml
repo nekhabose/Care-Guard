@@ -49,7 +49,7 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-claude}
       JWT_SECRET: ${JWT_SECRET:-dev-insecure-change-me}
       # Seeds the first admin so the login portal works on first boot.
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@careguard.local}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@careguard.health}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-CareGuard Admin}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-ChangeMe123!}
       # Optional integrations — fill in via .env to enable real calls/LLM.

@@ -1,4 +1,4 @@
-import { Search, Users } from "lucide-react";
+import { Search, UserPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePatients } from "../hooks/queries";
@@ -8,6 +8,7 @@ import type { RiskLevel } from "../lib/types";
 import { Avatar } from "../components/ui/Avatar";
 import { RiskBadge } from "../components/ui/Badge";
 import { CallButton } from "../components/ui/CallButton";
+import { OnboardPatientModal } from "../components/ui/OnboardPatientModal";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/States";
 
@@ -21,6 +22,7 @@ const FILTERS: { label: string; value: RiskLevel | "all" }[] = [
 export function Patients() {
   const [filter, setFilter] = useState<RiskLevel | "all">("all");
   const [query, setQuery] = useState("");
+  const [onboarding, setOnboarding] = useState(false);
   const { data, isLoading, isError, error, refetch } = usePatients(
     filter === "all" ? undefined : filter,
   );
@@ -41,17 +43,25 @@ export function Patients() {
         title="Patients"
         subtitle="Post-discharge cohort under active monitoring."
         actions={
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              className="input w-full pl-9 sm:w-72"
-              placeholder="Search name, MRN, phone…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input w-full pl-9 sm:w-64"
+                placeholder="Search name, MRN, phone…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <button className="btn-primary shrink-0" onClick={() => setOnboarding(true)}>
+              <UserPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Onboard</span>
+            </button>
           </div>
         }
       />
+
+      {onboarding && <OnboardPatientModal onClose={() => setOnboarding(false)} />}
 
       <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
         {FILTERS.map((f) => (

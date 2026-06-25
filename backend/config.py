@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     base_url: str = "https://api.careguard.health"
     domain: str = "api.careguard.health"
+    # Browser origins allowed to call the API (comma-separated). Set this to the
+    # frontend's deployed origin when the SPA and API live on different hosts
+    # (e.g. Vercel frontend → Railway backend). Empty = use the built-in defaults
+    # in main.py ("*" in dev, the canonical app domain in production).
+    cors_allow_origins: str = ""
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/careguard"
@@ -103,7 +108,9 @@ class Settings(BaseSettings):
     # Initial admin bootstrap — on first startup with an empty users table, an
     # admin account is created from these so the login portal is usable after a
     # fresh deploy. No-ops once any user exists. Leave the password blank to skip.
-    bootstrap_admin_email: str = "admin@careguard.local"
+    # Use a real (non-reserved) domain: EmailStr rejects .local/.localhost etc.,
+    # which would make the seeded account impossible to log in with.
+    bootstrap_admin_email: str = "admin@careguard.health"
     bootstrap_admin_name: str = "CareGuard Admin"
     bootstrap_admin_password: str = ""
 
@@ -115,6 +122,28 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _normalize_database_url(self) -> "Settings":
+        """Coerce a plain ``postgres(ql)://`` URL to the asyncpg driver.
+
+        Managed platforms (Railway, Heroku, Render) inject ``DATABASE_URL`` as
+        ``postgres://`` or ``postgresql://`` — both default to the *sync* psycopg
+        driver, which the async engine can't use. Rewrite to ``+asyncpg`` so the
+        platform-provided URL works as-is.
+        """
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = "postgresql+asyncpg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        if url != self.database_url:
+            object.__setattr__(self, "database_url", url)
+        return self
 
     @model_validator(mode="after")
     def _resolve_secret_refs(self) -> "Settings":

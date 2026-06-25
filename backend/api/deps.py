@@ -23,6 +23,7 @@ from services.auth_service import AuthService
 from services.call_trigger import CallTriggerService
 from services.discharge import DischargeService
 from services.notification import BaseNotifier, get_notifier
+from services.onboarding import PatientOnboardingService
 from services.outreach import OutreachService
 from services.patient_rights import PatientRightsService
 
@@ -134,6 +135,10 @@ def get_call_trigger_service(
 
 def get_patient_rights_service(db: AsyncSession = Depends(get_db)) -> PatientRightsService:
     return PatientRightsService(db)
+
+
+def get_onboarding_service(db: AsyncSession = Depends(get_db)) -> PatientOnboardingService:
+    return PatientOnboardingService(db)
 
 
 def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:

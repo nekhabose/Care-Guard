@@ -1,13 +1,8 @@
-import { AlertCircle, ArrowRight, ShieldPlus, TestTube2 } from "lucide-react";
+import { AlertCircle, ArrowRight, ShieldPlus } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
-import {
-  getApiBase,
-  setApiBase,
-  setDemoMode,
-  setSession,
-} from "../lib/auth";
+import { getApiBase, setApiBase, setSession } from "../lib/auth";
 
 export function Login() {
   const navigate = useNavigate();
@@ -36,11 +31,6 @@ export function Login() {
     } finally {
       setBusy(false);
     }
-  };
-
-  const startDemo = () => {
-    setDemoMode(true);
-    navigate("/", { replace: true });
   };
 
   return (
@@ -136,18 +126,8 @@ export function Login() {
             </button>
           </form>
 
-          <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-            or
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-          </div>
-
-          <button onClick={startDemo} className="btn-outline w-full">
-            <TestTube2 className="h-4 w-4" />
-            Explore with demo data
-          </button>
-          <p className="mt-3 text-center text-xs text-slate-400">
-            Demo mode uses synthetic patients — no PHI, no backend required.
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Authorized care-team access only. All activity is audit-logged.
           </p>
         </div>
       </div>
