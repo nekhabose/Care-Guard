@@ -5,7 +5,7 @@ from typing import Any
 
 import anthropic
 
-from .base import LLMClient
+from .base import LLMClient, TextDeltaCallback
 from .types import (
     LLMResponse,
     Message,
@@ -37,6 +37,30 @@ class ClaudeClient(LLMClient):
             messages=[self._to_native(m) for m in messages],
         )
         return self._from_native(response)
+
+    async def stream_message(
+        self,
+        *,
+        system: str,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        max_tokens: int,
+        on_text: TextDeltaCallback,
+    ) -> LLMResponse:
+        """Stream text deltas to ``on_text`` while the model generates, then
+        return the fully-assembled response (including any tool_use blocks)."""
+        async with self._client.messages.stream(
+            model=self._model,
+            max_tokens=max_tokens,
+            system=system,
+            tools=tools,
+            messages=[self._to_native(m) for m in messages],
+        ) as stream:
+            async for delta in stream.text_stream:
+                if delta:
+                    await on_text(delta)
+            final = await stream.get_final_message()
+        return self._from_native(final)
 
     # ------------------------------------------------------------------
     # Unified → Claude

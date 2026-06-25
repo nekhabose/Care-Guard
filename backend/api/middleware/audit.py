@@ -23,21 +23,25 @@ PHI_PATH_PATTERN = re.compile(
 class HIPAAAuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         start = time.perf_counter()
-        response = await call_next(request)
-        duration_ms = int((time.perf_counter() - start) * 1000)
-
-        if PHI_PATH_PATTERN.search(request.url.path):
-            user_id = self._extract_user_id(request)
-            logger.info(
-                "PHI_ACCESS method=%s path=%s status=%s user_id=%s duration_ms=%s",
-                request.method,
-                request.url.path,
-                response.status_code,
-                user_id,
-                duration_ms,
-            )
-
-        return response
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            # Audit in a finally block so access is recorded even when the
+            # handler raises — an unverifiable audit trail is a compliance gap.
+            if PHI_PATH_PATTERN.search(request.url.path):
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.info(
+                    "PHI_ACCESS method=%s path=%s status=%s user_id=%s client=%s duration_ms=%s",
+                    request.method,
+                    request.url.path,
+                    status_code,
+                    self._extract_user_id(request),
+                    request.client.host if request.client else None,
+                    duration_ms,
+                )
 
     @staticmethod
     def _extract_user_id(request: Request) -> str | None:

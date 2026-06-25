@@ -3,10 +3,15 @@ EpicFHIRClient — authenticated async FHIR R4 client.
 
 Uses OAuth 2.0 client credentials (JWT assertion) for system-to-system access.
 All requests include the Bearer token; token is cached and refreshed on expiry.
+
+``BaseFHIRClient`` is the abstract contract the rest of the app depends on, so a
+mock client (see ``fhir.mock_client``) can stand in when Epic creds aren't
+available — both return the same ``get_discharge_data`` shape.
 """
 import asyncio
 import logging
 import time
+from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
@@ -33,13 +38,34 @@ HRRP_ICD_MAP = {
 }
 
 
-class EpicFHIRClient:
+class BaseFHIRClient(ABC):
+    """Contract for any source of discharge data (live Epic or mock)."""
+
+    @abstractmethod
+    async def get_discharge_data(self, epic_patient_id: str) -> dict[str, Any]:
+        """Return the raw FHIR resource set for one patient.
+
+        Shape: ``{"patient", "medications", "conditions", "documents",
+        "appointments"}`` — exactly what ``DischargeParser.parse`` consumes.
+        """
+        ...
+
+
+class EpicFHIRClient(BaseFHIRClient):
     def __init__(self) -> None:
         self._base_url = settings.epic_fhir_base_url
         self._client_id = settings.epic_client_id
         self._private_key_path = settings.epic_private_key_path
+        self._private_key_pem = settings.epic_private_key
         self._access_token: str | None = None
         self._token_expiry: float = 0
+
+    def _load_private_key(self) -> str:
+        """Prefer an injected PEM (e.g. from Secrets Manager) over a disk path."""
+        if self._private_key_pem:
+            return self._private_key_pem
+        with open(self._private_key_path) as f:
+            return f.read()
 
     async def get_discharge_data(self, epic_patient_id: str) -> dict[str, Any]:
         """Fetch all FHIR resources needed for discharge processing."""
@@ -76,8 +102,7 @@ class EpicFHIRClient:
         if self._access_token and time.time() < self._token_expiry - 60:
             return self._access_token
 
-        with open(self._private_key_path) as f:
-            private_key = f.read()
+        private_key = self._load_private_key()
 
         now = int(time.time())
         assertion = jwt.encode(

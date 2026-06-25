@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from models.db import ConversationTurn, OutreachSession
 from .base import BaseRepository
@@ -29,3 +29,13 @@ class TurnRepository(BaseRepository[ConversationTurn]):
             .order_by(ConversationTurn.created_at)
         )
         return list(result.scalars().all())
+
+    async def delete_by_sessions(self, session_ids: list[uuid.UUID]) -> int:
+        """Hard-delete all turns for the given sessions (right to erasure)."""
+        if not session_ids:
+            return 0
+        result = await self.db.execute(
+            delete(ConversationTurn).where(ConversationTurn.session_id.in_(session_ids))
+        )
+        await self.db.flush()
+        return result.rowcount or 0

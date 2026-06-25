@@ -1,0 +1,136 @@
+import { AlertCircle, ArrowRight, ShieldPlus } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ApiError, api } from "../lib/api";
+import { getApiBase, setApiBase, setSession } from "../lib/auth";
+
+export function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [base, setBase] = useState(getApiBase());
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password || busy) return;
+    setError(null);
+    setBusy(true);
+    setApiBase(base);
+    try {
+      const res = await api.login(email.trim(), password);
+      setSession(res.access_token, res.user);
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not reach the server. Check the API base URL.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-full items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-soft dark:border-slate-800 dark:bg-slate-900 md:grid-cols-2">
+        {/* Brand panel */}
+        <div className="relative hidden flex-col justify-between bg-gradient-to-br from-brand-700 via-brand-800 to-brand-950 p-10 text-white md:flex">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl bg-white/15 p-2">
+              <ShieldPlus className="h-6 w-6" />
+            </div>
+            <span className="text-lg font-extrabold tracking-tight">CareGuard</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold leading-snug">
+              Catch readmissions before they happen.
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-brand-100/90">
+              Monitor post-discharge outreach, triage clinical escalations, and
+              keep your highest-risk patients safe at home.
+            </p>
+          </div>
+          <div className="flex gap-6 text-sm text-brand-100/80">
+            <div>
+              <p className="text-2xl font-bold text-white">−38%</p>
+              <p>30-day readmits</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">24/7</p>
+              <p>AI voice check-ins</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Form panel */}
+        <div className="p-8 sm:p-10">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Sign in
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Coordinator access to the CareGuard dashboard.
+          </p>
+
+          <form onSubmit={signIn} className="mt-6 space-y-4">
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Email
+              </label>
+              <input
+                className="input"
+                type="email"
+                autoComplete="username"
+                placeholder="you@hospital.org"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Password
+              </label>
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <details className="text-xs text-slate-500 dark:text-slate-400">
+              <summary className="cursor-pointer select-none">Advanced — API base URL</summary>
+              <input
+                className="input mt-2"
+                placeholder="https://api.careguard.health"
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+              />
+            </details>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={!email.trim() || !password || busy}
+            >
+              {busy ? "Signing in…" : "Sign in"}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Authorized care-team access only. All activity is audit-logged.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

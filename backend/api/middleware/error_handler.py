@@ -9,6 +9,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from exceptions import (
+    AuthenticationError,
     CareGuardError,
     ConflictError,
     FHIRAuthError,
@@ -27,6 +28,8 @@ def _error_body(code: str, message: str) -> dict:
 async def careguard_exception_handler(request: Request, exc: CareGuardError) -> JSONResponse:
     logger.exception("Domain error: %s", exc.message)
 
+    if isinstance(exc, AuthenticationError):
+        return JSONResponse(status_code=401, content=_error_body(exc.code, exc.message))
     if isinstance(exc, NotFoundError):
         return JSONResponse(status_code=404, content=_error_body(exc.code, exc.message))
     if isinstance(exc, ConflictError):

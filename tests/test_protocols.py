@@ -28,6 +28,8 @@ def test_system_prompt_includes_patient_context():
     prompt = protocol.build_system_prompt(
         hospital_name="City Hospital",
         patient_first_name="Jane",
+        patient_last_name="Doe",
+        date_of_birth="March 14, 1948",
         discharge_date="2026-05-20",
         diagnosis="Heart failure",
         medications="Furosemide 40mg daily",
@@ -38,6 +40,9 @@ def test_system_prompt_includes_patient_context():
     assert "Jane" in prompt
     assert "weight" in prompt.lower()
     assert "heart failure" in prompt.lower()
+    # Identity verification must be present and reference the DOB.
+    assert "March 14, 1948" in prompt
+    assert "date of birth" in prompt.lower()
 
 
 def test_heart_failure_checklist_includes_weight():
