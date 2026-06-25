@@ -8,7 +8,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fhir.client import EpicFHIRClient
+from fhir.client import BaseFHIRClient
 from fhir.parser import DischargeParser
 from repositories.discharge import DischargeRepository
 from repositories.patient import PatientRepository
@@ -21,7 +21,7 @@ class DischargeService:
     def __init__(
         self,
         db: AsyncSession,
-        fhir_client: EpicFHIRClient,
+        fhir_client: BaseFHIRClient,
     ) -> None:
         self._patient_repo = PatientRepository(db)
         self._discharge_repo = DischargeRepository(db)
@@ -36,13 +36,25 @@ class DischargeService:
         raw = await self._fhir.get_discharge_data(epic_patient_id)
         parsed = DischargeParser.parse(raw)
 
-        # Upsert patient (PHI encrypted inside repo write via app-layer encryption)
+        # Upsert patient. The `_enc` columns are EncryptedString, so these plain
+        # values are encrypted automatically on write and decrypted on read.
         patient = await self._patient_repo.get_by_epic_id(epic_patient_id)
         if not patient:
             patient = await self._patient_repo.create(
                 epic_patient_id=epic_patient_id,
                 mrn=parsed.mrn,
-                first_name_enc=parsed.first_name,   # encryption handled by repo in production
+                first_name_enc=parsed.first_name,
+                last_name_enc=parsed.last_name,
+                phone_enc=parsed.phone,
+                date_of_birth=parsed.date_of_birth,
+            )
+        else:
+            # Refresh demographics from the source of truth (FHIR) on re-intake —
+            # phone/name/MRN may have changed since the last discharge.
+            await self._patient_repo.update(
+                patient,
+                mrn=parsed.mrn,
+                first_name_enc=parsed.first_name,
                 last_name_enc=parsed.last_name,
                 phone_enc=parsed.phone,
                 date_of_birth=parsed.date_of_birth,

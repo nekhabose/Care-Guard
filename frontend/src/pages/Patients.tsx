@@ -7,6 +7,7 @@ import { cn } from "../lib/cn";
 import type { RiskLevel } from "../lib/types";
 import { Avatar } from "../components/ui/Avatar";
 import { RiskBadge } from "../components/ui/Badge";
+import { CallButton } from "../components/ui/CallButton";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/States";
 
@@ -91,6 +92,7 @@ export function Patients() {
                   <th className="px-5 py-3 font-semibold">Age</th>
                   <th className="px-5 py-3 font-semibold">Risk</th>
                   <th className="px-5 py-3 text-right font-semibold">Enrolled</th>
+                  <th className="px-5 py-3 text-right font-semibold">Call</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -131,6 +133,11 @@ export function Patients() {
                     </td>
                     <td className="px-5 py-3 text-right text-slate-500 dark:text-slate-400">
                       {formatDate(p.created_at)}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex justify-end">
+                        <CallButton patientId={p.id} variant="icon" />
+                      </div>
                     </td>
                   </tr>
                 ))}

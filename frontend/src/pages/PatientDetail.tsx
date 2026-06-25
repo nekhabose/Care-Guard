@@ -22,6 +22,7 @@ import {
 } from "../lib/format";
 import { Avatar } from "../components/ui/Avatar";
 import { RiskBadge, SeverityBadge, StatusBadge, Tag } from "../components/ui/Badge";
+import { CallButton } from "../components/ui/CallButton";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/States";
 
 export function PatientDetail() {
@@ -98,6 +99,7 @@ export function PatientDetail() {
               </div>
             )}
             <RiskBadge level={patient.risk_level} />
+            <CallButton patientId={patient.id} />
           </div>
         </div>
 

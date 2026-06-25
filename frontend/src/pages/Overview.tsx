@@ -18,6 +18,8 @@ import { fullName, initials, relativeTime } from "../lib/format";
 import type { RiskLevel } from "../lib/types";
 import { Avatar } from "../components/ui/Avatar";
 import { RiskBadge, SeverityBadge } from "../components/ui/Badge";
+import { CallButton } from "../components/ui/CallButton";
+import { CallHighRiskButton } from "../components/ui/CallHighRiskButton";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/States";
 import { StatCard } from "../components/ui/StatCard";
@@ -251,9 +253,12 @@ export function Overview() {
           <h3 className="font-semibold text-slate-800 dark:text-slate-100">
             High-risk patients
           </h3>
-          <Link to="/patients" className="text-sm font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
-            All patients →
-          </Link>
+          <div className="flex items-center gap-3">
+            <CallHighRiskButton />
+            <Link to="/patients" className="text-sm font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
+              All patients →
+            </Link>
+          </div>
         </div>
         {patients.isLoading ? (
           <LoadingState />
@@ -280,6 +285,7 @@ export function Overview() {
                     </span>
                   )}
                   <RiskBadge level={p.risk_level} />
+                  <CallButton patientId={p.id} variant="icon" />
                 </li>
               ))}
           </ul>

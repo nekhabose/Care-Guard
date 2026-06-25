@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api.middleware.audit import HIPAAAuditMiddleware
 from api.middleware.error_handler import careguard_exception_handler, unhandled_exception_handler
+from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.routes import dashboard, discharge, twilio_voice
 from config import get_settings
-from database import Base, engine
 from exceptions import CareGuardError
 import models.db  # noqa: F401 — registers all ORM models with Base
 
@@ -22,8 +24,9 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Schema is owned by Alembic — run `alembic upgrade head` before starting.
+    # (Previously created here via Base.metadata.create_all, which caused schema
+    # drift on column changes; see backend/alembic/README.md.)
     yield
 
 
@@ -37,6 +40,7 @@ app = FastAPI(
 
 # Middleware (order matters — outermost runs first)
 app.add_middleware(HIPAAAuditMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://app.careguard.health"] if settings.is_production else ["*"],
@@ -44,6 +48,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Production transport hardening: force HTTPS and restrict the Host header.
+if settings.is_production:
+    app.add_middleware(HTTPSRedirectMiddleware)
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=[settings.domain, "app.careguard.health"],
+    )
 
 # Exception handlers
 app.add_exception_handler(CareGuardError, careguard_exception_handler)

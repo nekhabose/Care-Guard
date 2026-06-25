@@ -41,7 +41,9 @@ settings = get_settings()
 
 EscalationCallback = Callable[..., Coroutine[Any, Any, None]]
 TurnCallback = Callable[[str, str], Coroutine[Any, Any, None]]
-SendToCallCallback = Callable[[str], Coroutine[Any, Any, None]]
+# Signature: (text, last=True). last=False for streamed deltas mid-turn,
+# last=True to mark the end of the agent's turn so ConversationRelay listens.
+SendToCallCallback = Callable[..., Coroutine[Any, Any, None]]
 
 
 @dataclass
@@ -57,6 +59,36 @@ class AgentContext:
     recorded_symptoms: list[dict[str, Any]] = field(default_factory=list)
     adherence_log: list[dict[str, Any]] = field(default_factory=list)
     scheduling_log: list[dict[str, Any]] = field(default_factory=list)
+
+
+class _OutgoingTurn:
+    """Streams an agent turn to the call, one token behind.
+
+    ConversationRelay treats the text frame with ``last=True`` as the end of the
+    agent's turn and only then resumes listening. An empty trailing frame is not
+    a reliable end signal, so we hold the most recent token back and emit it with
+    ``last=True`` in ``finish()`` — i.e. the final *real* token carries the
+    end-of-turn marker. All earlier tokens stream immediately with ``last=False``.
+    """
+
+    def __init__(self, send: SendToCallCallback) -> None:
+        self._send = send
+        self._pending: str | None = None
+
+    async def feed(self, delta: str) -> None:
+        if not delta:
+            return
+        if self._pending is not None:
+            await self._send(self._pending, last=False)
+        self._pending = delta
+
+    async def finish(self) -> None:
+        if self._pending is not None:
+            await self._send(self._pending, last=True)
+            self._pending = None
+        else:
+            # No text streamed this turn (e.g. tool-only) — still close the turn.
+            await self._send("", last=True)
 
 
 class CareAgent:
@@ -82,7 +114,7 @@ class CareAgent:
 
         opening = self._build_opening()
         await self._emit_turn("agent", opening)
-        await self._ctx.send_to_call_callback(opening)
+        await self._ctx.send_to_call_callback(opening, last=True)
         messages.append(Message(role="assistant", content=[TextBlock(text=opening)]))
 
         while True:
@@ -93,11 +125,37 @@ class CareAgent:
             await self._emit_turn("patient", patient_text)
             messages.append(Message(role="user", content=[TextBlock(text=patient_text)]))
 
-            messages = await self._agent_turn(messages, system_prompt)
+            # Stream this turn's speech; the streamer marks the FINAL token with
+            # last=True (ConversationRelay's end-of-turn signal) so it returns to
+            # listening. An empty trailing frame is NOT a reliable end signal.
+            streamer = _OutgoingTurn(self._ctx.send_to_call_callback)
+            try:
+                messages = await self._agent_turn(messages, system_prompt, streamer)
+                await streamer.finish()
+            except Exception:
+                # Any failure (LLM error, network, etc.) must not leave the caller
+                # in silence. Speak a graceful fallback and end the call.
+                logger.exception(
+                    "Agent turn failed session_id=%s", self._ctx.session_id
+                )
+                await self._safe_say(
+                    "I'm sorry, I'm having a little trouble on my end right now. "
+                    "Someone from the care team will call you back shortly. Take care."
+                )
+                break
 
             last = self._last_agent_text(messages)
             if last and self._is_closing(last):
                 break
+
+    async def _safe_say(self, text: str) -> None:
+        """Speak a single utterance, swallowing transport errors (best-effort)."""
+        try:
+            await self._emit_turn("agent", text)
+            await self._ctx.send_to_call_callback(text, last=True)
+        except Exception:
+            logger.warning("Failed to deliver fallback message session_id=%s",
+                           self._ctx.session_id)
 
     async def inject_patient_input(self, text: str) -> None:
         """Called by the WebSocket handler when patient speech arrives."""
@@ -131,6 +189,8 @@ class CareAgent:
         return self._protocol.build_system_prompt(
             hospital_name=ctx.discharge.hospital_name,
             patient_first_name=ctx.patient.first_name,
+            patient_last_name=ctx.patient.last_name,
+            date_of_birth=self._format_dob(ctx.patient.date_of_birth),
             discharge_date=str(ctx.discharge.discharge_date),
             diagnosis=ctx.discharge.primary_diagnosis_name or "recent illness",
             medications=meds,
@@ -139,35 +199,50 @@ class CareAgent:
         )
 
     def _build_opening(self) -> str:
-        name = self._ctx.patient.first_name
-        hospital = self._ctx.discharge.hospital_name
-        return (
-            f"Hello, may I please speak with {name}? "
-            f"... Hi {name}, this is an automated care check-in call from {hospital}. "
-            "We're calling to see how you're doing since coming home from the hospital. "
-            "Is now a good time to answer a few questions? It should only take about five minutes."
-        )
+        # Identity is unverified at this point, so disclose NO health information —
+        # just ask for the patient by name. The system prompt drives date-of-birth
+        # verification before anything about the discharge is mentioned.
+        first = self._ctx.patient.first_name
+        last = self._ctx.patient.last_name
+        return f"Hello, may I please speak with {first} {last}?"
+
+    @staticmethod
+    def _format_dob(dob: Any) -> str:
+        if not dob:
+            return "unknown"
+        try:
+            return dob.strftime("%B %-d, %Y")  # e.g. "March 14, 1948"
+        except (ValueError, AttributeError):
+            return str(dob)
 
     async def _agent_turn(
-        self, messages: list[Message], system_prompt: str
+        self, messages: list[Message], system_prompt: str, streamer: "_OutgoingTurn"
     ) -> list[Message]:
-        """One agent turn — handles tool calls recursively until end_turn."""
-        response = await self._llm.create_message(
+        """One agent turn — handles tool calls recursively until end_turn.
+
+        Assistant text is streamed to ``streamer`` as it is generated; the
+        streamer buffers one token so run() can flush the final token with
+        last=True after the whole turn (incl. tool round-trips) resolves.
+        """
+        response = await self._llm.stream_message(
             system=system_prompt,
             messages=messages,
             tools=self._registry.definitions,
             max_tokens=settings.llm_max_tokens,
+            on_text=streamer.feed,
         )
 
         if response.stop_reason == "tool_use":
+            # Any text spoken before the tool call was already streamed; persist it.
+            if response.text:
+                await self._emit_turn("agent", response.text)
             messages.append(Message(role="assistant", content=list(response.content)))
             tool_results = await self._handle_tool_calls(response.tool_uses)
             messages.append(Message(role="user", content=tool_results))
-            return await self._agent_turn(messages, system_prompt)
+            return await self._agent_turn(messages, system_prompt, streamer)
 
         if response.text:
             await self._emit_turn("agent", response.text)
-            await self._ctx.send_to_call_callback(response.text)
             messages.append(Message(
                 role="assistant",
                 content=[TextBlock(text=response.text)],
@@ -207,8 +282,20 @@ class CareAgent:
 
     @staticmethod
     def _is_closing(text: str) -> bool:
-        closing_phrases = ("thank you", "take care", "goodbye", "have a good", "stay well")
-        return any(phrase in text.lower() for phrase in closing_phrases)
+        """True only on an unambiguous sign-off.
+
+        Must NOT match ordinary politeness like "thank you" — the agent says that
+        mid-conversation, and matching it would end the call after one reply.
+        Being conservative is safe: if no sign-off is detected, the call still
+        ends when the caller hangs up (the WS "disconnect" frame).
+        """
+        t = text.lower()
+        closing_phrases = (
+            "goodbye", "good-bye", "good bye", "bye for now", "take care",
+            "have a good day", "have a great day", "have a wonderful day",
+            "have a good rest", "rest of your day", "stay well", "stay safe",
+        )
+        return any(phrase in t for phrase in closing_phrases)
 
     @staticmethod
     def _format_medications(medications: list[dict[str, Any]]) -> str:

@@ -79,8 +79,8 @@ class OutreachService:
                 content=content,
             )
 
-        async def send_to_call_callback(text: str) -> None:
-            await self._send_to_call(twilio_call_sid, text)
+        async def send_to_call_callback(text: str, last: bool = True) -> None:
+            await self._send_to_call(twilio_call_sid, text, last)
 
         ctx = AgentContext(
             session_id=session_id,

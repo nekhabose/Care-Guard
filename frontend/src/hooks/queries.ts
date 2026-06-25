@@ -32,6 +32,28 @@ export function useAnalytics() {
   });
 }
 
+export function useCallPatient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patientId: string) => api.callPatient(patientId),
+    onSuccess: (_data, patientId) => {
+      qc.invalidateQueries({ queryKey: ["sessions", patientId] });
+      qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
+export function useCallHighRisk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.callHighRisk(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+      qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
 export function useResolveEscalation() {
   const qc = useQueryClient();
   return useMutation({

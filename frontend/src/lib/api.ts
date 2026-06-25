@@ -2,6 +2,7 @@ import { getApiBase, getToken, isDemoMode } from "./auth";
 import {
   mockEscalations,
   mockPatients,
+  mockSessions,
   mockSummary,
   sessionsFor,
 } from "./mock";
@@ -100,6 +101,61 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ resolved_by: resolvedBy }),
     });
+  },
+
+  // Demo helper: synthesize a just-placed call so the UI updates without a
+  // backend. Mutates mockSessions so the patient's timeline reflects it.
+  _demoCall(patientId: string): OutreachSession {
+    const existing = mockSessions[patientId] ?? [];
+    const ts = new Date().toISOString();
+    const sess: OutreachSession = {
+      id: `s-manual-${existing.length + 1}-${patientId}`,
+      patient_id: patientId,
+      discharge_id: "d-demo",
+      scheduled_at: ts,
+      started_at: ts,
+      completed_at: null,
+      channel: "voice",
+      status: "in_progress",
+      outreach_number: existing.length + 1,
+      twilio_call_sid: "CA-demo-manual",
+      created_at: ts,
+    };
+    mockSessions[patientId] = [...existing, sess];
+    return sess;
+  },
+
+  // Initiate an immediate AI voice check-in call to one patient.
+  async callPatient(patientId: string): Promise<OutreachSession> {
+    if (isDemoMode()) {
+      await wait();
+      return this._demoCall(patientId);
+    }
+    return request<OutreachSession>(`/dashboard/patients/${patientId}/call`, {
+      method: "POST",
+    });
+  },
+
+  // Call every high-risk patient now.
+  async callHighRisk(): Promise<OutreachSession[]> {
+    if (isDemoMode()) {
+      await wait();
+      return mockPatients
+        .filter((p) => p.risk_level === "high")
+        .map((p) => this._demoCall(p.id));
+    }
+    return request<OutreachSession[]>(`/dashboard/call-high-risk`, {
+      method: "POST",
+    });
+  },
+
+  // Seed the cohort from built-in mock FHIR data (no Epic webhook needed).
+  async seedMockPatients(): Promise<Patient[]> {
+    if (isDemoMode()) {
+      await wait();
+      return mockPatients;
+    }
+    return request<Patient[]>(`/dashboard/seed`, { method: "POST" });
   },
 
   async analyticsSummary(): Promise<AnalyticsSummary> {
