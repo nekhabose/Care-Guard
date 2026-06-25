@@ -1,0 +1,96 @@
+# CareGuard — full local/demo stack: Postgres, Redis, API, Celery worker, and
+# the dashboard (nginx) on a single origin.
+#
+#   cp .env.docker.example .env   # optional — overrides the defaults below
+#   docker compose up --build
+#
+# Then open http://localhost:8080 and sign in with BOOTSTRAP_ADMIN_EMAIL /
+# BOOTSTRAP_ADMIN_PASSWORD. Defaults are demo-grade; see docs/DEPLOYMENT.md for
+# the production checklist (real PHI key, BAA notifier, strong JWT secret, TLS).
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-careguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-careguard}
+      POSTGRES_DB: ${POSTGRES_DB:-careguard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-careguard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-careguard}:${POSTGRES_PASSWORD:-careguard}@db:5432/${POSTGRES_DB:-careguard}
+      DB_REQUIRE_SSL: "false"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FHIR_PROVIDER: ${FHIR_PROVIDER:-mock}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-noop}
+      LLM_PROVIDER: ${LLM_PROVIDER:-claude}
+      JWT_SECRET: ${JWT_SECRET:-dev-insecure-change-me}
+      # Seeds the first admin so the login portal works on first boot.
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@careguard.local}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-CareGuard Admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-ChangeMe123!}
+      # Optional integrations — fill in via .env to enable real calls/LLM.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+    ports:
+      - "8000:8000"   # direct API access (frontend talks to it via nginx proxy)
+
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "tasks.celery_app", "worker", "--loglevel=info"]
+    environment:
+      # Workers must NOT run migrations (the backend service owns that).
+      RUN_MIGRATIONS: "0"
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-careguard}:${POSTGRES_PASSWORD:-careguard}@db:5432/${POSTGRES_DB:-careguard}
+      DB_REQUIRE_SSL: "false"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FHIR_PROVIDER: ${FHIR_PROVIDER:-mock}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-noop}
+      JWT_SECRET: ${JWT_SECRET:-dev-insecure-change-me}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
