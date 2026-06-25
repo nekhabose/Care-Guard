@@ -1,10 +1,11 @@
-// Lightweight client-side session store. The backend issues JWTs (HS256) and
-// expects them as a Bearer token; there is no login endpoint yet, so the
-// coordinator pastes a token (or flips on Demo Mode to explore with sample data).
+// Lightweight client-side session store. The coordinator signs in with email +
+// password at POST /auth/login; the backend returns a short-lived JWT (HS256)
+// we send as a Bearer token. Demo Mode bypasses the backend with sample data.
 
 const TOKEN_KEY = "careguard.token";
 const BASE_KEY = "careguard.apiBase";
 const DEMO_KEY = "careguard.demo";
+const USER_KEY = "careguard.user";
 
 export interface JwtClaims {
   sub?: string;
@@ -15,6 +16,13 @@ export interface JwtClaims {
   [k: string]: unknown;
 }
 
+export interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -23,6 +31,26 @@ export function setToken(token: string): void {
 }
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getUser(): SessionUser | null {
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SessionUser;
+  } catch {
+    return null;
+  }
+}
+export function setUser(user: SessionUser): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+/** Persist a successful login: token + identity. */
+export function setSession(token: string, user: SessionUser): void {
+  setToken(token);
+  setUser(user);
+  setDemoMode(false);
 }
 
 export function getApiBase(): string {
@@ -63,5 +91,6 @@ export function decodeClaims(token: string | null): JwtClaims | null {
 
 export function logout(): void {
   clearToken();
+  localStorage.removeItem(USER_KEY);
   setDemoMode(false);
 }

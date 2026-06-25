@@ -1,25 +1,41 @@
-import { ArrowRight, ShieldPlus, TestTube2 } from "lucide-react";
+import { AlertCircle, ArrowRight, ShieldPlus, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ApiError, api } from "../lib/api";
 import {
   getApiBase,
   setApiBase,
   setDemoMode,
-  setToken,
+  setSession,
 } from "../lib/auth";
 
 export function Login() {
   const navigate = useNavigate();
-  const [token, setTokenInput] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [base, setBase] = useState(getApiBase());
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const signIn = (e: React.FormEvent) => {
+  const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token.trim()) return;
+    if (!email.trim() || !password || busy) return;
+    setError(null);
+    setBusy(true);
     setApiBase(base);
-    setToken(token);
-    setDemoMode(false);
-    navigate("/", { replace: true });
+    try {
+      const res = await api.login(email.trim(), password);
+      setSession(res.access_token, res.user);
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not reach the server. Check the API base URL.",
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const startDemo = () => {
@@ -69,31 +85,53 @@ export function Login() {
           </p>
 
           <form onSubmit={signIn} className="mt-6 space-y-4">
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                API base URL
-                <span className="ml-1 font-normal text-slate-400">(optional)</span>
+                Email
               </label>
               <input
                 className="input"
+                type="email"
+                autoComplete="username"
+                placeholder="you@hospital.org"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Password
+              </label>
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <details className="text-xs text-slate-500 dark:text-slate-400">
+              <summary className="cursor-pointer select-none">Advanced — API base URL</summary>
+              <input
+                className="input mt-2"
                 placeholder="https://api.careguard.health"
                 value={base}
                 onChange={(e) => setBase(e.target.value)}
               />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Access token (JWT)
-              </label>
-              <textarea
-                className="input min-h-[88px] resize-y font-mono text-xs"
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"
-                value={token}
-                onChange={(e) => setTokenInput(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="btn-primary w-full" disabled={!token.trim()}>
-              Sign in
+            </details>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={!email.trim() || !password || busy}
+            >
+              {busy ? "Signing in…" : "Sign in"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>

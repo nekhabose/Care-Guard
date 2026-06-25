@@ -100,6 +100,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 60
 
+    # Initial admin bootstrap — on first startup with an empty users table, an
+    # admin account is created from these so the login portal is usable after a
+    # fresh deploy. No-ops once any user exists. Leave the password blank to skip.
+    bootstrap_admin_email: str = "admin@careguard.local"
+    bootstrap_admin_name: str = "CareGuard Admin"
+    bootstrap_admin_password: str = ""
+
     # Celery — Redis broker + result backend (free, runs locally via `redis-server`).
     # Broker on db 0, results on db 1 so they never collide.
     celery_broker_url: str = "redis://localhost:6379/0"

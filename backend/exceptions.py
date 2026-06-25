@@ -34,6 +34,13 @@ class ValidationError(CareGuardError):
         super().__init__(message, code="VALIDATION_ERROR")
 
 
+class AuthenticationError(CareGuardError):
+    """Bad credentials or a disabled account. Maps to HTTP 401."""
+
+    def __init__(self, message: str = "Invalid email or password") -> None:
+        super().__init__(message, code="AUTHENTICATION_ERROR")
+
+
 # --- FHIR errors ---
 
 class FHIRAuthError(CareGuardError):

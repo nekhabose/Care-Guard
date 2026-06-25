@@ -36,8 +36,14 @@ def create_access_token(
     sub: str,
     role: str | Role,
     expires_minutes: int | None = None,
+    extra: dict | None = None,
 ) -> str:
-    """Mint a signed, expiring dashboard token."""
+    """Mint a signed, expiring dashboard token.
+
+    ``extra`` adds non-authoritative display claims (e.g. name/email) the
+    frontend can decode for the UI; never put authorization data only here —
+    ``role`` is the authoritative claim checked by ``require_role``.
+    """
     settings = get_settings()
     now = datetime.now(timezone.utc)
     ttl = expires_minutes if expires_minutes is not None else settings.jwt_expiry_minutes
@@ -47,6 +53,8 @@ def create_access_token(
         "iat": now,
         "exp": now + timedelta(minutes=ttl),
     }
+    if extra:
+        payload.update(extra)
     return pyjwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

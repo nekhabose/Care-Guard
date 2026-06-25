@@ -1,3 +1,4 @@
+from .auth import LoginRequest, TokenResponse, UserRead
 from .discharge import DischargeCreate, DischargeRead
 from .escalation import EscalationCreate, EscalationRead, EscalationResolve
 from .patient import ContactPreferenceUpdate, PatientCreate, PatientRead, PatientUpdate
@@ -8,4 +9,5 @@ __all__ = [
     "DischargeCreate", "DischargeRead",
     "OutreachSessionCreate", "OutreachSessionRead", "TurnCreate",
     "EscalationCreate", "EscalationRead", "EscalationResolve",
+    "LoginRequest", "TokenResponse", "UserRead",
 ]

@@ -1,3 +1,4 @@
+import type { SessionUser } from "./auth";
 import { getApiBase, getToken, isDemoMode } from "./auth";
 import {
   mockEscalations,
@@ -24,7 +25,22 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// Pull a human message out of either error envelope the backend uses:
+// domain errors -> {error:{code,message}}; FastAPI -> {detail}.
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return body?.error?.message ?? body?.detail ?? body?.message ?? res.statusText;
+  } catch {
+    return res.statusText;
+  }
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  opts?: { auth?: boolean },
+): Promise<T> {
   const base = getApiBase();
   const token = getToken();
   const res = await fetch(`${base}${path}`, {
@@ -36,21 +52,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
 
-  if (res.status === 401) {
+  // On the login call a 401 means bad credentials — surface the server's
+  // message. Elsewhere it means the session lapsed.
+  if (res.status === 401 && !opts?.auth) {
     throw new ApiError(401, "Session expired or token invalid. Please sign in again.");
   }
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail ?? body.message ?? detail;
-    } catch {
-      /* keep statusText */
-    }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, await errorDetail(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: SessionUser;
 }
 
 // Demo Mode short-circuits network calls with sample data. Small latency keeps
@@ -58,6 +76,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const wait = () => new Promise((r) => setTimeout(r, 220));
 
 export const api = {
+  // Exchange email + password for a bearer token. Returns the token + the
+  // authenticated user; the caller persists them via auth.setSession.
+  async login(email: string, password: string): Promise<TokenResponse> {
+    return request<TokenResponse>(
+      `/auth/login`,
+      { method: "POST", body: JSON.stringify({ email, password }) },
+      { auth: true },
+    );
+  },
+
   async listPatients(riskLevel?: RiskLevel): Promise<Patient[]> {
     if (isDemoMode()) {
       await wait();

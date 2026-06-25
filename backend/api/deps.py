@@ -17,7 +17,9 @@ from repositories.discharge import DischargeRepository
 from repositories.escalation import EscalationRepository
 from repositories.patient import PatientRepository
 from repositories.session import SessionRepository, TurnRepository
+from repositories.user import UserRepository
 from security.auth import InvalidTokenError, READ_ROLES, decode_token
+from services.auth_service import AuthService
 from services.call_trigger import CallTriggerService
 from services.discharge import DischargeService
 from services.notification import BaseNotifier, get_notifier
@@ -132,3 +134,11 @@ def get_call_trigger_service(
 
 def get_patient_rights_service(db: AsyncSession = Depends(get_db)) -> PatientRightsService:
     return PatientRightsService(db)
+
+
+def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
+
+
+def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
+    return AuthService(db)
